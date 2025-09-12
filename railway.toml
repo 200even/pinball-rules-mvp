@@ -1,0 +1,33 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "npm start"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10
+
+[[services]]
+name = "web"
+
+[services.source]
+repo = "200even/pinball-rules-mvp"
+branch = "main"
+
+[services.variables]
+PORT = "8080"
+NODE_ENV = "production"
+
+[[services]]
+name = "meilisearch"
+
+[services.source]
+image = "getmeili/meilisearch:latest"
+
+[services.variables]
+MEILI_ENV = "production"
+MEILI_NO_ANALYTICS = "true"
+
+[services.volumes]
+mountPath = "/meili_data"
+size = "1GB"
