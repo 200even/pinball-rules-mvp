@@ -3,31 +3,32 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import ReactMarkdown from 'react-markdown';
 
-interface AskAIComponentProps {
-  gameId?: string;
-  gameName?: string;
+interface Source {
+  id: string;
+  title: string;
+  body: string;
+  game_title?: string;
+  rom_version?: string;
+  section_type: string;
+  similarity?: number;
+  source: string;
 }
 
 interface AIResponse {
   answer: string;
-  sources: Array<{
-    id: string;
-    title: string;
-    body: string;
-    game_title?: string;
-    rom_version?: string;
-    section_type: string;
-    similarity?: number;
-    source: 'vector' | 'keyword';
-  }>;
+  sources: Source[];
   query: string;
 }
 
-export function AskAIComponent({ gameId, gameName }: AskAIComponentProps) {
+interface Props {
+  gameId?: string;
+  gameName?: string;
+}
+
+export function AskAIComponent({ gameId, gameName }: Props) {
   const [question, setQuestion] = useState('');
   const [response, setResponse] = useState<AIResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -35,9 +36,8 @@ export function AskAIComponent({ gameId, gameName }: AskAIComponentProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!question.trim()) return;
-    
+    if (!question.trim() || loading) return;
+
     setLoading(true);
     setError(null);
     setResponse(null);
@@ -56,166 +56,185 @@ export function AskAIComponent({ gameId, gameName }: AskAIComponentProps) {
 
       if (!res.ok) {
         const errorData = await res.json();
+        if (res.status === 401) {
+          setError('Authentication required. Please sign up to access AI assistance.');
+          return;
+        }
+        if (res.status === 402) {
+          setError('Subscription required. Please upgrade your plan to access AI assistance.');
+          return;
+        }
+        if (res.status === 429) {
+          setError('AI service is busy. Please try again in a few minutes.');
+          return;
+        }
+        if (res.status === 503) {
+          setError('AI service is temporarily unavailable. Please try again later.');
+          return;
+        }
         throw new Error(errorData.error || 'Failed to get response');
       }
 
       const data = await res.json();
       setResponse(data.data);
+      
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      console.error('Error asking AI:', err);
+      setError(err instanceof Error ? err.message : 'Failed to get AI response. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const exampleQuestions = gameId 
-    ? [
-        `How do you start multiball in ${gameName}?`,
-        `What are the main scoring features?`,
-        `How do you complete the wizard mode?`,
-      ]
-    : [
-        'How do you start multiball in Attack from Mars?',
-        'What are the rules for Medieval Madness castle?',
-        'How does the Twilight Zone powerball work?',
-      ];
+  const handleClearResponse = () => {
+    setResponse(null);
+    setError(null);
+  };
+
+  const handleNewQuestion = () => {
+    setQuestion('');
+    setResponse(null);
+    setError(null);
+  };
 
   return (
-    <div className="space-y-6">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <Textarea
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            placeholder={`Ask a question about ${gameName || 'pinball rules'}...`}
-            className="min-h-[100px]"
-            disabled={loading}
-          />
-        </div>
-        
-        <div className="flex justify-between items-center">
-          <div className="text-sm text-gray-500">
-            {question.length}/1000 characters
-          </div>
-          <Button type="submit" disabled={loading || !question.trim()}>
-            {loading ? 'Asking...' : 'Ask AI'}
-          </Button>
-        </div>
-      </form>
-
-      {/* Example Questions */}
-      {!response && (
-        <div>
-          <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Try asking:
-          </h4>
-          <div className="flex flex-wrap gap-2">
-            {exampleQuestions.map((example, index) => (
-              <button
-                key={index}
-                onClick={() => setQuestion(example)}
-                className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            🤖 AI Rules Assistant
+            {gameName && (
+              <Badge variant="secondary" className="text-xs">
+                {gameName}
+              </Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Textarea
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                placeholder={`Ask me anything about ${gameName || 'pinball'} rules...`}
+                className="min-h-[100px]"
                 disabled={loading}
+              />
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                💡 Try asking: "How do you start multiball?", "What are the high-value shots?", or "How does the bonus system work?"
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button 
+                type="submit" 
+                disabled={!question.trim() || loading}
+                className="flex-1"
               >
-                {example}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+                {loading ? 'Thinking...' : 'Ask AI'}
+              </Button>
+              {(response || error) && (
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={handleNewQuestion}
+                  disabled={loading}
+                >
+                  New Question
+                </Button>
+              )}
+            </div>
+          </form>
 
-      {/* Error Display */}
-      {error && (
-        <Card className="border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20">
-          <CardContent className="pt-6">
-            <p className="text-red-700 dark:text-red-300">{error}</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Response Display */}
-      {response && (
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">AI Response</CardTitle>
-              <CardDescription>
-                Question: {response.query}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown>{response.answer}</ReactMarkdown>
+          {error && (
+            <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+              <div className="text-red-800 dark:text-red-200">
+                <strong>Error:</strong> {error}
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Sources */}
-          {response.sources.length > 0 && (
-            <div>
-              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                Sources ({response.sources.length}):
-              </h4>
-              <div className="space-y-3">
-                {response.sources.map((source, index) => (
-                  <Card key={source.id} className="text-sm">
-                    <CardHeader className="pb-2">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-sm">
-                          [{index + 1}] {source.title}
-                        </CardTitle>
-                        <div className="flex gap-1">
-                          <Badge variant="outline" className="text-xs">
-                            {source.section_type}
-                          </Badge>
-                          <Badge 
-                            variant={source.source === 'vector' ? 'default' : 'secondary'}
-                            className="text-xs"
-                          >
-                            {source.source}
-                          </Badge>
-                          {source.similarity && (
-                            <Badge variant="outline" className="text-xs">
-                              {Math.round(source.similarity * 100)}%
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                      {source.game_title && (
-                        <CardDescription className="text-xs">
-                          {source.game_title}
-                          {source.rom_version && ` (${source.rom_version})`}
-                        </CardDescription>
-                      )}
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-3">
-                        {source.body.substring(0, 200)}
-                        {source.body.length > 200 && '...'}
-                      </p>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+              {error.includes('Authentication') && (
+                <div className="mt-2 text-sm text-red-600 dark:text-red-300">
+                  This app will require user authentication and a subscription to access AI features.
+                </div>
+              )}
             </div>
           )}
 
-          {/* Ask Another Question */}
-          <div className="pt-4 border-t">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setQuestion('');
-                setResponse(null);
-                setError(null);
-              }}
-              className="w-full"
-            >
-              Ask Another Question
-            </Button>
-          </div>
-        </div>
-      )}
+          {response && (
+            <div className="space-y-4">
+              <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    💡 AI Answer
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={handleClearResponse}
+                      className="ml-auto"
+                    >
+                      ✕
+                    </Button>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="prose dark:prose-invert max-w-none">
+                    {response.answer.split('\n').map((paragraph, idx) => (
+                      <p key={idx} className="mb-2 last:mb-0">
+                        {paragraph}
+                      </p>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {response.sources.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg">📚 Sources</CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0 space-y-3">
+                    {response.sources.map((source, idx) => (
+                      <div 
+                        key={source.id}
+                        className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border"
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs">
+                              [{idx + 1}]
+                            </Badge>
+                            <h4 className="font-medium text-sm">
+                              {source.title}
+                            </h4>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {source.game_title && (
+                              <Badge variant="secondary" className="text-xs">
+                                {source.game_title}
+                                {source.rom_version && ` (${source.rom_version})`}
+                              </Badge>
+                            )}
+                            <Badge 
+                              variant={source.source === 'vector' ? 'default' : 'outline'} 
+                              className="text-xs"
+                            >
+                              {source.source}
+                            </Badge>
+                          </div>
+                        </div>
+                        <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
+                          {source.body.length > 200 
+                            ? `${source.body.substring(0, 200)}...` 
+                            : source.body
+                          }
+                        </p>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

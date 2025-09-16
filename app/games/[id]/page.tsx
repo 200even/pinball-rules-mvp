@@ -9,12 +9,13 @@ import { getGameById, getRulesetsByGameId, getRuleSectionsByRulesetId } from '@/
 import { AskAIComponent } from '@/components/ask-ai-component';
 
 interface GamePageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 async function GameContent({ params }: GamePageProps) {
-  const game = await getGameById(params.id);
+  const resolvedParams = await params;
   
+  const game = await getGameById(resolvedParams.id);
   if (!game) {
     notFound();
   }

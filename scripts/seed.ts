@@ -124,9 +124,20 @@ async function seedGame(title: string, manufacturer: string, year: number, syste
     const section = sections[i];
     console.log(`📝 Processing section: ${section.title}`);
     
-    // Generate embedding
-    const embeddingText = prepareTextForEmbedding(section.title, section.body);
-    const embedding = await generateEmbedding(embeddingText);
+    // Generate embedding (skip if no OpenAI API key)
+    let embedding = null;
+    
+    if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.startsWith('sk-') && process.env.OPENAI_API_KEY.length > 40) {
+      try {
+        const embeddingText = prepareTextForEmbedding(section.title, section.body);
+        embedding = await generateEmbedding(embeddingText);
+      } catch (error) {
+        console.log(`⚠️  Skipping embedding for ${section.title} (OpenAI error)`);
+        embedding = null;
+      }
+    } else {
+      console.log(`⚠️  Skipping embedding for ${section.title} (no OpenAI API key)`);
+    }
     
     // Create rule section
     const ruleSection = await createRuleSection({

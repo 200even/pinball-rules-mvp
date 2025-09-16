@@ -56,7 +56,8 @@ export async function hybridRetrieval(
     const vectorResults = await searchSimilarSections(
       queryEmbedding,
       Math.ceil(limit * 0.7), // 70% of results from vector search
-      vectorThreshold
+      vectorThreshold,
+      gameId // Add gameId parameter to filter by game
     );
 
     // Keyword search using Meilisearch

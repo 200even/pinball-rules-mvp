@@ -152,19 +152,26 @@ export async function updateRuleSectionEmbedding(id: string, embedding: number[]
 export async function searchSimilarSections(
   embedding: number[],
   limit: number = 10,
-  threshold: number = 0.8
+  threshold: number = 0.8,
+  gameId?: string
 ): Promise<RuleSection[]> {
-  const result = await query(
-    `SELECT rs.*, g.title as game_title, r.rom_version,
+  let sqlQuery = `SELECT rs.*, g.title as game_title, r.rom_version,
             (1 - (rs.embedding <=> $1::vector)) as similarity
      FROM rule_sections rs
      JOIN rulesets r ON rs.ruleset_id = r.id
      JOIN games g ON r.game_id = g.id
      WHERE rs.embedding IS NOT NULL
-       AND (1 - (rs.embedding <=> $1::vector)) > $3
-     ORDER BY rs.embedding <=> $1::vector
-     LIMIT $2`,
-    [`[${embedding.join(',')}]`, limit, threshold]
-  );
+       AND (1 - (rs.embedding <=> $1::vector)) > $3`;
+  
+  let params: any[] = [`[${embedding.join(',')}]`, limit, threshold];
+  
+  if (gameId) {
+    sqlQuery += ` AND g.id = $4`;
+    params.push(gameId);
+  }
+  
+  sqlQuery += ` ORDER BY rs.embedding <=> $1::vector LIMIT $2`;
+  
+  const result = await query(sqlQuery, params);
   return result.rows;
 }

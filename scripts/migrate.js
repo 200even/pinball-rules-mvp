@@ -4,7 +4,11 @@ const { Pool } = require('pg');
 
 async function runMigrations() {
   const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
+    host: 'localhost',
+    port: 5432,
+    database: 'pinball_rules',
+    user: 'postgres',
+    password: 'password',
   });
 
   try {
